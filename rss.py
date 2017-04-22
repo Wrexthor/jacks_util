@@ -18,6 +18,11 @@ import time
 
 # main function calling other functions
 def rss(address, list, remove, live, match, print):
+
+    if remove:
+        write_address(remove_item(remove))
+    if list:
+        print_list(open_address())
     if address:
         add_address(address)
     news = parse(open_address())
@@ -26,53 +31,69 @@ def rss(address, list, remove, live, match, print):
     while live:
         click.echo('Going live!')
         # check if new news have been added
-        if news != parse(open_address()):
-            print_news(parse(open_address()), match)
+        old_news = news
         news = parse(open_address())
-        time.sleep(60)
+        diff = list(set(old_news) - set(news))
+        if diff:
+            click.echo('Diff is true')  # debug
+            print_news(diff, match)
+        else:
+            click.echo('Diff is false')  # debug
+        click.echo('Sleeping 5')  # debug
+        time.sleep(5)
 
+
+def remove_item(remove):
+    address = open_address()
+    if remove in address:
+        return address.remove(remove)
+    else:
+        click.echo('Address to be removed not found')
+
+
+def print_list(address):
+    for line in address:
+        click.echo(line)
 
 
 def print_news(news, match):
-    '''
-    
-        any(e[1] in match for e in news)
-    '''
-    # print = []
-    if match != None:
+    if match:
         # search for matching word in list of lists of news
         for site in news:
             for item in site.entries:
-                #article = [item.title, item.published, item.link]
                 if match in item.title:
-                    #print.append(article)
                     click.echo("{} \n {}".format(item.title, item.link))
     else:
         for site in news:
             for item in site.entries:
                 click.echo("{} \n {}".format(item.title, item.link))
-                # print("{} \n {}".format(item.title, item.link))
-
 
 
 # writes list of addresses to address.list file
 def add_address(address):
+    new_address = [(open_address()).append(address)]
     with open('address.list', 'wb') as handle:
-        pickle.dump(address, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(new_address, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def write_address(address):
+    new_address = list(address)
+    with open('address.list', 'wb') as handle:
+        pickle.dump(new_address, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 # used to open address.list file
 def open_address():
-    #address_list = []
     if os.path.isfile('address.list'):
         with open('address.list', 'rb') as handle:
-            #address_list.clear()
-            #address_list.append(pickle.load(handle))
             return pickle.load(handle)
-            #return address_list
     else:
-        click.echo('No previous addresses found, please add some addresses')
-        return None
+        empty = []
+        with open('address.list', 'wb') as handle:
+            pickle.dump(empty, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+        with open('address.list', 'rb') as handle:
+            return pickle.load(handle)
 
 
 def parse(urls):
