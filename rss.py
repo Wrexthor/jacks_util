@@ -27,7 +27,16 @@ def rss(address, list, remove, live, match, print, clear):
             click.echo('Error attempting to clear addresses, no previous addresses found to clear.')
 
     if remove:
-        write_address(remove_item(remove))
+        # check that remove function returns value
+        #write_address(remove_item(remove))
+        r = remove_item(remove)
+        if r:
+            # write value to file
+            write_address(r)
+        else:
+            os.remove('address.txt')
+            #click.echo('Error attempting to write addresses after removal; addresses not found')
+
     if list:
         print_list(open_address())
     if address:
@@ -37,28 +46,45 @@ def rss(address, list, remove, live, match, print, clear):
         print_news(news, match)
     # pre-parse news for later comparison in while loop
     if live:
+        click.echo('Live is {}'.format(live))  # debug
         news = parse(open_address())
+    news = parse(open_address())
+    i = 0
     while live:
-        click.echo('Going live!')
+        click.echo('Going live!')  # debug
         # check if new news have been added
-        old_news = news
+        new_news = parse(open_address())
+        #list(set(new_news) - set(news))
+        diff = set(new_news).difference(set(news))
+        
+        click.echo(type(diff))
+        '''
+        click.echo(i)
+        if i > 0:
+            click.echo('I is greater than 1!')
+            diff = list(set(news) - set(new_news))
+            list(set(news) - set(new_news))
+            click.echo('Diff: {}'.format(diff))  # debug
+            if diff:
+                click.echo('Diff is true')  # debug
+                print_news(diff, match)
+            else:
+                click.echo('Diff is false')  # debug
+        '''
         news = parse(open_address())
-        diff = list(set(old_news) - set(news))
-        if diff:
-            click.echo('Diff is true')  # debug
-            print_news(diff, match)
-        else:
-            click.echo('Diff is false')  # debug
         click.echo('Sleeping 5')  # debug
-        time.sleep(5)
+        time.sleep(3)
+        i += 1
 
 
 def remove_item(remove):
     address = open_address()
     if address:
-        if remove in address:
-            return address.remove(remove)
-        else:
+        try:
+            address.remove(remove)
+            click.echo('Removed {}'.format(remove))
+            return address
+        except ValueError:
             click.echo('Address to be removed not found')
     else:
         click.echo('Error attempting to delete address; no addresses found')
@@ -92,13 +118,7 @@ def add_address(address):
     # check if values are stored in file from before
     if open_address():
         # get old values, add new ones
-        click.echo('Address found in add address, appending and writing to file')  # debug
-        # debug stuff below
-        click.echo('Returned type from open address is list:')
-        click.echo(type(open_address()))
-        click.echo(open_address())
-        click.echo(type(address))
-        # debug stuff above
+        # click.echo('Address found in add address, appending and writing to file')  # debug
         old = open_address()
         new_address = old + address
         #new_address = [(open_address()).append(address)]
@@ -108,7 +128,7 @@ def add_address(address):
             # pickle.dump(new_address, handle, protocol=pickle.HIGHEST_PROTOCOL)
     # write values directly to file
     else:
-        click.echo('No Address found in write address, writing to file')  # debug
+        # click.echo('No Address found in write address, writing to file')  # debug
         write_address(address)
 
 
@@ -116,7 +136,7 @@ def write_address(address):
     # convert address to list to prevent
     # problems with tuples when adding new data
     if address:
-        click.echo('Address found in write address, writing to file')  # debug
+        # click.echo('Address found in write address, writing to file')  # debug
         new_address = list(address)
         with open('address.txt', 'w') as handle:
             json.dump(new_address, handle)
@@ -129,14 +149,14 @@ def write_address(address):
 def open_address():
     # check if file exist
     if os.path.isfile('address.txt'):
-        click.echo('File found, opening')  # debug
+        # click.echo('File found, opening')  # debug
         # if it does, open it
         with open('address.txt', 'r') as handle:
             return json.load(handle)
             # return list(pickle.load(handle))
     # no file exists, can't open file
     else:
-        click.echo('No file found, opening file failed')  # debug
+        # click.echo('No file found, opening file failed')  # debug
         return None
 
 
