@@ -1,7 +1,7 @@
 import click
 import feedparser
 import os.path
-import time
+# import time
 import json
 
 @click.command()
@@ -9,15 +9,15 @@ import json
                                                      "Example: -a google.com -a bing.com")
 @click.option('--list', '-l', is_flag=True, default=False, help="Lists current addresses stored")
 @click.option('--remove', '-r', help="Remove address from store")
-@click.option('--live', '-L', is_flag=True, default=False, help="Keeps alive, waiting for new "
-                                                                "feed items and writing them")
+#@click.option('--live', '-L', is_flag=True, default=False, help="Keeps alive, waiting for new " # i give up, no one uses etag/modified
+#                                                                "feed items and writing them")
 @click.option('--match', '-m', default=None, help="Get all news matching keyword in title")
 @click.option('--print', '-p', is_flag=True, default=False, help="Prints news to screen")
 @click.option('--clear', '-c', is_flag=True, default=False, help="Removes all saved addresses")
 
 
 # main function calling other functions
-def rss(address, list, remove, live, match, print, clear):
+def rss(address, list, remove, match, print, clear):
 
     if clear:
         if os.path.isfile('address.txt'):
@@ -44,21 +44,42 @@ def rss(address, list, remove, live, match, print, clear):
     if print:
         news = parse(open_address())
         print_news(news, match)
+    '''
+    this whole feature is on hold until i can come up with a 
+    good way to get only the newest items from feed
+
     # pre-parse news for later comparison in while loop
     if live:
         click.echo('Live is {}'.format(live))  # debug
         news = parse(open_address())
-    news = parse(open_address())
+
+
     i = 0
     while live:
-        click.echo('Going live!')  # debug
+        news = parse(open_address())
+        for item in news:
+            check_update(item, item.href)
+        # click.echo('Going live!')  # debug
         # check if new news have been added
-        new_news = parse(open_address())
-        #list(set(new_news) - set(news))
-        diff = set(new_news).difference(set(news))
+        #new_news = parse(open_address())
+        # diff = list(set(new_news) - set(news))
+        #diff = set(new_news) - set(news)
+
+        #diff = get_difference(new_news, news)
+        #diff = set(new_news).difference(set(news))
+        # click.echo(diff)
+
+        if i == 0:
+            old_news = print_news(news, match)
         
-        click.echo(type(diff))
-        '''
+        if diff:
+            click.echo('Diff is true')  # debug
+            print_news(diff, match)
+        else:
+            click.echo('Diff is false')  # debug
+        
+        # click.echo(type(diff))
+        
         click.echo(i)
         if i > 0:
             click.echo('I is greater than 1!')
@@ -70,11 +91,29 @@ def rss(address, list, remove, live, match, print, clear):
                 print_news(diff, match)
             else:
                 click.echo('Diff is false')  # debug
-        '''
-        news = parse(open_address())
-        click.echo('Sleeping 5')  # debug
-        time.sleep(3)
+        
+        #news = parse(open_address())
+        click.echo('Sleeping 5 minutes')  # debug
+        time.sleep(300)
         i += 1
+'''
+
+def get_difference(list1, list2):
+    s = set(list2)
+    list3 = [x for x in list1 if x not in s]
+    return list(list3)
+
+def check_update(old_feed, address):
+    # store the etag and modified
+    last_etag = old_feed.etag
+    last_modified = old_feed.modified
+    # check if new version exists
+    feed_update = feedparser.parse(address, etag=last_etag, modified=last_modified)
+    # return based on result
+    if feed_update.status == 304:
+        return False
+    else:
+        return True
 
 
 def remove_item(remove):
@@ -99,16 +138,27 @@ def print_list(address):
 
 
 def print_news(news, match):
+    click.echo('\n\n')
+    result = []
     if match:
         # search for matching word in list of lists of news
         for site in news:
             for item in site.entries:
                 if match in item.title:
-                    click.echo("{} \n {}".format(item.title, item.link))
+                    click.secho("\n{} \n {}".format(item.title, item.link), fg='yellow')
+                    # add to results
+                    result.append(item.title)
+                    result.append(item.link)
     else:
         for site in news:
             for item in site.entries:
-                click.echo("{} \n {}".format(item.title, item.link))
+                click.secho("\n{}".format(item.title))
+                click.secho("{}".format(item.link), fg='cyan')
+                # add to results
+                result.append(item.title)
+                result.append(item.link)
+    click.echo('\n\n')
+    return result
 
 
 # writes list of addresses to address.list file
