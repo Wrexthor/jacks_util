@@ -1,7 +1,7 @@
 import yahoo_finance
 import json
 import os
-
+import click
 
 stocks = ['MSFT', 'AMZN', 'GOOG']
 
