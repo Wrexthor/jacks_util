@@ -18,12 +18,16 @@ main()
 import wmi
 import json
 import os
+import threading
+import pythoncom
 
-def watch():
+
+def watch(file_path):
     """
     Watches for creation of new processes, stores in index dict and prints index    
     :return:
     """
+    pythoncom.CoInitialize()
     index = {}
     c = wmi.WMI()
     watcher = c.watch_for(
@@ -38,7 +42,7 @@ def watch():
         if stuff.__getattr__('Name') not in os_procs:
             index[stuff.__getattr__('Name')] = stuff.__getattr__('ExecutablePath')
             print(index)
-            write_file('data.json', index)
+            write_file(file_path, index)
         else:
             print('Standard OS task found and skipped')
             pass
@@ -82,13 +86,19 @@ def search(text, index):
     :param index: 
     :return: 
     """
-    if text.upper() in index.keys:
-        print('Found match!')
+    for key, val in index.items():
+        if text.upper() in key.upper():
+            # print('Found match!')
+            return val
+    #if text.upper() in index.keys:
+     #   print('Found match!')
 
 def main():
     path = 'data.json'
     while True:
         index = read_file(path)
+        print(type(index))
+        #print(index)
         in_text = input('Start (tab for autocomplete): ')
         if index:
             search(in_text, index)
@@ -96,7 +106,15 @@ def main():
             print('Index not ready, no results found!')
 
 
-watch()
+processThread = threading.Thread(target=watch, args=('data.json',))  # <- note extra ','
+processThread.start()
+
+# t1 = FuncThread(watch, 'data.json')
+# t1.start()
+
+if __name__ == '__main__':
+    main()
+# watch()
 
 '''
 
