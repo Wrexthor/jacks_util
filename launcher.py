@@ -20,6 +20,7 @@ import json
 import os
 import threading
 import pythoncom
+import winreg
 
 
 def watch(file_path):
@@ -69,7 +70,7 @@ def read_file(path):
     """
     Reads json file and returns content
     :param path: 
-    :return: 
+    :return: content of read json file
     """
     if os.path.isfile(path):
         try:
@@ -93,8 +94,81 @@ def search(text, index):
     #if text.upper() in index.keys:
      #   print('Found match!')
 
+
+
+
+
+def reg_keys(key_path, hive):
+    """
+    Reads value of all keys under specified key path    
+    :param key_path: 
+    :param hive: 
+    :return: nested list with with key values
+    """
+    result = []
+    # set reg hive
+    if hive == 'HKEY_CURRENT_USER':
+        reg = winreg.ConnectRegistry(None, winreg.HKEY_CURRENT_USER)
+    elif hive == 'HKEY_LOCAL_MACHINE':
+        reg = winreg.ConnectRegistry(None, winreg.HKEY_LOCAL_MACHINE)
+    elif hive == 'HKEY_CURRENT_CONFIG':
+        reg = winreg.ConnectRegistry(None, winreg.HKEY_CURRENT_CONFIG)
+    elif hive == 'HKEY_CLASSES_ROOT':
+        reg = winreg.ConnectRegistry(None, winreg.HKEY_CLASSES_ROOT)
+    elif hive == 'HKEY_USERS':
+        reg = winreg.ConnectRegistry(None, winreg.HKEY_USERS)
+    else:
+        return None
+    # open key from path
+    key = winreg.OpenKey(reg, key_path)
+    # get amount of sub keys
+    count = winreg.QueryInfoKey(key)
+    # iterate over keys
+    for i in range(count[1]):
+        # get value of key
+        res = winreg.EnumValue(key, i)
+        result.append(res)
+        print(res)
+    return result
+
+
+def filter_reg(lists):
+    """
+    filters the nested list from registry function
+    into a dict with 
+    key = name of app
+    value = path to app
+    if app has an .exe/.EXE file ending
+    :param lists: 
+    :return: dict with name:path
+    """
+    res = {}
+    for a in lists:
+        # try if .exe matches
+        try:
+            # get index of match .exe
+            ind = a[0].index('.exe')
+        # if not matches, try .EXE
+        except ValueError:
+            try:
+                # get index of match .exe
+                ind = a[0].index('.EXE')
+                # its probably a dll, set ind to None
+            except:
+                ind = None
+        # if ind is not None, add to result
+        if ind:
+            # split string from beginning to index + 4 to include .exe
+            res[a[1]] = (a[0][:(ind + 4)])
+    return res
+
+
 def main():
     path = 'data.json'
+    key_path = r"Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\MuiCache"
+    key_hive = 'HKEY_CURRENT_USER'
+    reg1 = filter_reg(reg_keys(key_path, key_hive))
+    print(reg1)
     while True:
         index = read_file(path)
         print(type(index))
@@ -106,8 +180,8 @@ def main():
             print('Index not ready, no results found!')
 
 
-processThread = threading.Thread(target=watch, args=('data.json',))  # <- note extra ','
-processThread.start()
+#processThread = threading.Thread(target=watch, args=('data.json',))  # <- note extra ','
+#processThread.start()
 
 # t1 = FuncThread(watch, 'data.json')
 # t1.start()
