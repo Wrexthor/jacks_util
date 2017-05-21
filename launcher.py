@@ -15,12 +15,19 @@ main()
     while loop with input waiting for user, tab for autocompletion if possible
 
 '''
+
+"""
+Gets values of registry of recent programs, stores in dict with name:path
+Allows user to enter a string that is matched to a name and starts the program
+"""
 import wmi
 import json
 import os
 import threading
 import pythoncom
 import winreg
+import subprocess
+import win32com.client
 
 
 def watch(file_path):
@@ -50,6 +57,25 @@ def watch(file_path):
 
         # print(stuff.__getattr__('Name'))
         # print(stuff.__getattr__('ExecutablePath'))
+
+
+def get_lnk_path(lnk_path):
+    try:
+        shell = win32com.client.Dispatch("WScript.Shell")
+        shortcut = shell.CreateShortCut(lnk_path)
+        return shortcut.Targetpath
+    except Exception as e:
+        print(e)
+        return None
+
+
+def get_folder_content(folder_path):
+    try:
+        paths = [os.path.join(folder_path, fn) for fn in next(os.walk(folder_path))[2]]
+        return paths
+    except Exception as e:
+        print(e)
+        return None
 
 
 def write_file(path, data):
@@ -128,7 +154,7 @@ def reg_keys(key_path, hive):
         # get value of key
         res = winreg.EnumValue(key, i)
         result.append(res)
-        print(res)
+        # print(res)
     return result
 
 
@@ -162,22 +188,51 @@ def filter_reg(lists):
             res[a[1]] = (a[0][:(ind + 4)])
     return res
 
+def start_exe(path):
+    try:
+        subprocess.Popen(path)
+    except Exception as e:
+        print(e)
 
 def main():
     path = 'data.json'
+
     key_path = r"Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\MuiCache"
     key_hive = 'HKEY_CURRENT_USER'
-    reg1 = filter_reg(reg_keys(key_path, key_hive))
-    print(reg1)
+    '''
+    key_values = []
+    for key in key_path:
+        key_values.append(filter_reg(reg_keys(key, key_hive)))
+    '''
+    key_values = filter_reg(reg_keys(key_path, key_hive))
+
+    recent_files = []
+    # get content from recents folder
+    recent_content = get_folder_content(r"%userprofile%\AppData\Roaming\Microsoft\Windows\Recent")
+
+    for file in recent_content:
+        recent_files.append(get_lnk_path(file))
+
+    #reg1 = filter_reg(reg_keys(key_path, key_hive))
+    write_file(path, key_values)
+    print(key_values)
     while True:
-        index = read_file(path)
-        print(type(index))
-        #print(index)
-        in_text = input('Start (tab for autocomplete): ')
+        '''
+        # index = read_file(path)
+        # print(type(index))
+        # print(index)
+        # in_text = input('Start (tab for autocomplete): ')
         if index:
             search(in_text, index)
         else:
             print('Index not ready, no results found!')
+        '''
+        in_text = input('Start (tab for autocomplete): ')
+        if in_text:
+            exe_path = search(in_text, key_values)
+            in_text = None
+            start_exe(exe_path)
+
 
 
 #processThread = threading.Thread(target=watch, args=('data.json',))  # <- note extra ','
