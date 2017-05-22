@@ -70,8 +70,12 @@ def get_lnk_path(lnk_path):
 
 
 def get_folder_content(folder_path):
+    paths = []
     try:
-        paths = [os.path.join(folder_path, fn) for fn in next(os.walk(folder_path))[2]]
+        for root, dirs, files in os.walk(folder_path):
+            for name in files:
+                paths.append(root + '\\' + name)
+        #print(paths)
         return paths
     except Exception as e:
         print(e)
@@ -205,13 +209,33 @@ def main():
         key_values.append(filter_reg(reg_keys(key, key_hive)))
     '''
     key_values = filter_reg(reg_keys(key_path, key_hive))
-
+    # get userprofile path from env variable
+    userprofile = os.environ['USERPROFILE']
     recent_files = []
+    startmenu_files = []
     # get content from recents folder
-    recent_content = get_folder_content(r"%userprofile%\AppData\Roaming\Microsoft\Windows\Recent")
+    print('getting recent')
+    recent_content = get_folder_content(userprofile + r"\AppData\Roaming\Microsoft\Windows\Recent")
+    # get content from startmenu folder
+    print('getting startmenu')
+    startmenu = get_folder_content(userprofile + r"\AppData\Roaming\Microsoft\Windows\Start Menu\Programs")
+
+
+
+    for file in startmenu:
+        print('processing startmenu')
+        if '.lnk' in file:
+            startmenu_files.append(get_lnk_path(file))
+    # make sure only last 10 files are processed
+    counter = 0
 
     for file in recent_content:
-        recent_files.append(get_lnk_path(file))
+        print(counter)
+        counter = counter + 1
+        if counter > 10:
+            return
+        if '.lnk' in file:
+            recent_files.append(get_lnk_path(file))
 
     #reg1 = filter_reg(reg_keys(key_path, key_hive))
     write_file(path, key_values)
