@@ -19,6 +19,7 @@ main()
 """
 Gets values of registry of recent programs, stores in dict with name:path
 Allows user to enter a string that is matched to a name and starts the program
+Currently lots of previous ideas in the code that does or does not run
 """
 import wmi
 import json
@@ -60,6 +61,11 @@ def watch(file_path):
 
 
 def get_lnk_path(lnk_path):
+    """
+    Gets the full path that a lnk file points to
+    :param lnk_path: 
+    :return: string with full path
+    """
     try:
         shell = win32com.client.Dispatch("WScript.Shell")
         shortcut = shell.CreateShortCut(lnk_path)
@@ -70,6 +76,11 @@ def get_lnk_path(lnk_path):
 
 
 def get_folder_content(folder_path):
+    """
+    Gets all files recursivly under given folder path
+    :param folder_path: 
+    :return: list with full path of each file
+    """
     paths = []
     try:
         for root, dirs, files in os.walk(folder_path):
@@ -120,7 +131,8 @@ def search(text, index):
     for key, val in index.items():
         if text.upper() in key.upper():
             # print('Found match!')
-            return val
+            res = (key, val)
+            return res
     #if text.upper() in index.keys:
      #   print('Found match!')
 
@@ -193,6 +205,11 @@ def filter_reg(lists):
     return res
 
 def start_exe(path):
+    """
+    opens given exe file as a subprocess
+    :param path: path to exe file
+    :return: 
+    """
     try:
         subprocess.Popen(path)
     except Exception as e:
@@ -233,7 +250,7 @@ def main():
         print(counter)
         counter = counter + 1
         if counter > 10:
-            return
+            break
         if '.lnk' in file:
             recent_files.append(get_lnk_path(file))
 
@@ -255,7 +272,8 @@ def main():
         if in_text:
             exe_path = search(in_text, key_values)
             in_text = None
-            start_exe(exe_path)
+            print('Starting {}'.format(exe_path[0]))
+            start_exe(exe_path[1])
 
 
 
