@@ -93,6 +93,8 @@ def get_folder_content(folder_path):
         return None
 
 
+
+
 def write_file(path, data):
     """
     Writes data as json to file
