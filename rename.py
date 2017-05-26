@@ -5,6 +5,7 @@ CLI that takes a list of files as input and renames them according to a pattern
 import click
 import os
 import piexif
+import time
 
 
 @click.command()
@@ -16,9 +17,10 @@ import piexif
 @click.option('--lower', '-l', is_flag=True, help="Make all names lowercase")
 @click.option('--upper', '-u', is_flag=True, help="Make all names uppercase")
 @click.option('--exif', '-e', is_flag=True, help="Strips exif metadata from JPEG/TIFF images")
+@click.option('--date', '-d', is_flag=True, help="Appends datetime to files in format: _%Y/%m/%d_%H:%M")
 
 
-def main(path, pattern, recurse, exif, simulate, lower, upper):
+def main(path, pattern, recurse, exif, simulate, lower, upper, date):
     # get files from path if recurse
     if recurse:
         files = get_files_recurse2(path)
@@ -48,8 +50,12 @@ def main(path, pattern, recurse, exif, simulate, lower, upper):
 
     # check if strip exif
     if exif:
-        print('Stripping metadata;')
-        strip_exif(files)
+        print('Stripping metadata:')
+        strip_exif2(files)
+
+    if date:
+        print('Appending date:')
+        add_date(files)
 
     # add old and new values to a dict
     # order does not matter as new name has already been assigned
@@ -65,9 +71,13 @@ def main(path, pattern, recurse, exif, simulate, lower, upper):
         '''
     # else print result and rename
     else:
-        print('Renaming:')
-        simulate2_(files)
-        rename2_(files)
+        # check that there is a new name
+        if files[0].newname:
+            print('Renaming:')
+            simulate2_(files)
+            rename2_(files)
+        else:
+            print('No action take as no new name was given')
         '''
         for key, val in dictionary:
             simulate(key, val)
@@ -107,6 +117,12 @@ def strip_exif(files):
             print(e)
 
 
+def add_date(files):
+    now = time.strftime("_%Y/%m/%d_%H:%M")
+    for file in files:
+        file.newname = (file.oldname.split('.')[0]) + now + '.' + file.oldname.split('.')[1]
+
+
 def strip_exif2(files):
     """
     Strips EXIF metadata from imagees
@@ -115,7 +131,12 @@ def strip_exif2(files):
     for file in files:
         try:
             if '.jpg' in file.oldname or '.tiff' in file.oldname:
-                piexif.remove(file.path+file.oldname)
+                #with open((file.path + file.oldname), 'w') as f:
+                #    piexif.remove(f)
+                piexif.remove((file.path + file.oldname))
+                #exif = piexif.load((file.path + file.oldname))
+                #piexif.dump(exif)
+                # print(file.path + file.oldname)
                 print('Metadata removed from {}'.format(file.oldname))
             else:
                 print('{} is not a JPEG or TIFF and wont be processed'.format(file.oldname))
