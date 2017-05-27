@@ -18,9 +18,11 @@ import time
 @click.option('--upper', '-u', is_flag=True, help="Make all names uppercase")
 @click.option('--exif', '-e', is_flag=True, help="Strips exif metadata from JPEG/TIFF images")
 @click.option('--date', '-d', is_flag=True, help="Appends datetime to files in format: _%Y/%m/%d_%H:%M")
+@click.option('--strip', '-S', help="Use none to remove whitespaces or a character to replace them with")
+@click.option('--rename', '-r', help="Use %Y:%m:%d:%H:%M datetime format or ### for incremental number, example newname###")
 
 
-def main(path, pattern, recurse, exif, simulate, lower, upper, date):
+def main(path, pattern, recurse, exif, simulate, lower, upper, date, strip, rename):
     # get files from path if recurse
     if recurse:
         files = get_files_recurse2(path)
@@ -35,18 +37,13 @@ def main(path, pattern, recurse, exif, simulate, lower, upper, date):
     # check lower option
     if lower and not upper:
         to_lowercase2(files)
-    # handle if both are true
-    #else:
-    #    print("You can't use both upper and lower")
+
     if lower and upper:
         print("You can't use both upper and lower")
 
     # check upper option
     if upper and not lower:
         to_uppercase2(files)
-    # handle if both are true
-    #else:
-    #    print("You can't use both upper and lower")
 
     # check if strip exif
     if exif:
@@ -57,18 +54,14 @@ def main(path, pattern, recurse, exif, simulate, lower, upper, date):
         print('Appending date:')
         add_date(files)
 
-    # add old and new values to a dict
-    # order does not matter as new name has already been assigned
-    # dictionary = dict(zip(files, result))
+    if strip:
+        print('Stripping/replacing whitespaces:')
+        replace_space(files, strip)
 
     # if simulate, only print result
     if simulate:
         print('Simulated results:')
         simulate2_(files)
-        '''
-        for key, val in dictionary:
-            simulate(key, val)
-        '''
     # else print result and rename
     else:
         # check that there is a new name
@@ -78,11 +71,6 @@ def main(path, pattern, recurse, exif, simulate, lower, upper, date):
             rename2_(files)
         else:
             print('No action take as no new name was given')
-        '''
-        for key, val in dictionary:
-            simulate(key, val)
-            rename(key, val)
-        '''
 
 
 class File:
@@ -90,31 +78,6 @@ class File:
         self.oldname = oldname
         self.newname = None
         self.path = path
-
-
-def pattern():
-    if pattern == '###':
-        print('stuff')
-    elif pattern == '':
-        print('stuff')
-    elif pattern == '###':
-        print('stuff')
-
-
-def strip_exif(files):
-    """
-    Strips EXIF metadata from imagees
-    :param files: dict of files with name:path    
-    """
-    for key, val in files:
-        try:
-            if '.jpg' in key or '.tiff' in key:
-                piexif.remove(val+key)
-                print('Metadata removed from {}'.format(key))
-            else:
-                print('{} is not a JPEG or TIFF and wont be processed'.format(key))
-        except Exception as e:
-            print(e)
 
 
 def add_date(files):
@@ -131,64 +94,43 @@ def strip_exif2(files):
     for file in files:
         try:
             if '.jpg' in file.oldname or '.tiff' in file.oldname:
-                #with open((file.path + file.oldname), 'w') as f:
-                #    piexif.remove(f)
                 piexif.remove((file.path + file.oldname))
-                #exif = piexif.load((file.path + file.oldname))
-                #piexif.dump(exif)
-                # print(file.path + file.oldname)
                 print('Metadata removed from {}'.format(file.oldname))
             else:
                 print('{} is not a JPEG or TIFF and wont be processed'.format(file.oldname))
         except Exception as e:
             print(e)
-            '''
-    for key, val in files:
-        try:
-            if '.jpg' in key or '.tiff' in key:
-                piexif.remove(val+key)
-                print('Metadata removed from {}'.format(key))
-            else:
-                print('{} is not a JPEG or TIFF and wont be processed'.format(key))
-        except Exception as e:
-            print(e)
-            '''
 
 
-def get_files(folder_path):
-    """
-    Gets files in a folder
-    :param folder_path: 
-    :return: dict with name:fullpath
-    """
-    f = {}
-    try:
-        for (dirpath, dirnames, filenames) in os.walk(folder_path):
-            #f.extend(dirpath + '\\' + filenames)
-            for file in filenames:
-                #f.append(dirpath + "\\" + file)
-                f[file] = (dirpath + "\\")
-            break
-        return f
-    except Exception as e:
-        print(e)
-        return None
+def rename_custom(files, rename):
+    rename.trim('')
+    i = 1
+    for file in files:
+        if '#' in rename:
+            # count number of # present
+            count = file.oldname.count('#')
+            # create a variable for the
+            replace = '#' * count
+            # create a variable for use in format based on count
+            fill = '0' + str(count) + 'd'
+            # add newname to file object
+            file.newname = file.oldname.replace(replace, format(i, fill))
+            i = i + 1
+
+
+def replace_space(files, char):
+    if char == 'none':
+        char = ''
+    for file in files:
+        file.newname = file.oldname.replace(' ', char)
 
 
 def get_files2(folder_path):
-    """
-    Gets files in a folder
-    :param folder_path: 
-    :return: dict with name:fullpath
-    """
     f = []
     try:
         for (dirpath, dirnames, filenames) in os.walk(folder_path):
-            #f.extend(dirpath + '\\' + filenames)
             for file in filenames:
-                #f.append(dirpath + "\\" + file)
-                f.append(File(file, (dirpath + "\\")))
-                #f[file] = (dirpath + "\\")
+                f.append(File(file, (dirpath + os.sep)))
             break
         return f
     except Exception as e:
@@ -196,163 +138,39 @@ def get_files2(folder_path):
         return None
 
 
-def to_uppercase(files):
-    """
-    Change all filenames to uppercase
-    :param files: dict with name:path
-    :return: dict with(oldname, newname):path
-    """
-    res = {}
-    '''
-    for file in files:
-        res.append(file.upper)
-    return res
-    
-    for key, val in files:
-        key = key.upper
-        res[key] = val
-    '''
-    for key, val in files.items():
-        #newkey = (key, key.lower)
-        #res[newkey] = val
-        res[(key, key.upper())] = val
-    return res
-
-
 def to_uppercase2(files):
-    """
-    Change all filenames to lowercase
-    :param files: dict with name:path
-    :return: dict with(oldname, newname):path
-    """
     for file in files:
         file.newname = file.oldname.upper()
 
 
-def to_lowercase(files):
-    """
-    Change all filenames to lowercase
-    :param files: dict with name:path
-    :return: dict with(oldname, newname):path
-    """
-    '''
-    res = []
-    for file in files:
-        res.append(file.lower)
-    return res
-    '''
-    res = {}
-    for key, val in files.items():
-        #newkey = (key, key.lower)
-        #res[newkey] = val
-        res[(key, key.lower())] = val
-    ''''
-    for key, val in files:
-        key = key.lower
-        res[key] = val
-    '''
-    print(res)
-    return res
-
-
 def to_lowercase2(files):
-    """
-    Change all filenames to lowercase
-    :param files: dict with name:path
-    :return: dict with(oldname, newname):path
-    """
     for file in files:
         file.newname = file.oldname.lower()
 
 
-
-def get_files_recurse(folder_path):
-    """
-    Gets all files recursivly under given folder path
-    :param folder_path: 
-    :return: dict with name:fullpath
-    """
-    paths = {}
-    try:
-        for root, dirs, files in os.walk(folder_path):
-            for name in files:
-                #paths.append(root + '\\' + name)
-                paths[name] = (root + '\\')
-        return paths
-    except Exception as e:
-        print(e)
-        return None
-
-
 def get_files_recurse2(folder_path):
-    """
-    Gets all files recursivly under given folder path
-    :param folder_path: 
-    :return: dict with name:fullpath
-    """
     paths = []
     try:
         for root, dirs, files in os.walk(folder_path):
             for name in files:
-                #paths.append(root + '\\' + name)
                 paths.append(File(name, (root + "\\")))
-                #paths[name] = (root + '\\')
         return paths
     except Exception as e:
         print(e)
         return None
-
-
-def numbered(files, pattern):
-    for file in files:
-        file
-
-
-def simulate_(files):
-    for key, val in files:
-        print('{} renamed to {}'.format(key[0], key[1]))
 
 
 def simulate2_(files):
     for file in files:
         print('{} renamed to {}'.format(file.oldname, file.newname))
-    #for key, val in files:
-    #    print('{} renamed to {}'.format(key[0], key[1]))
-
-
-
-def rename_(files):
-    """
-    Renames files from old to new name
-    :param files: dict with (olename, newname):path     
-    """
-    for key, val in files:
-        try:
-            os.rename((val + key[0]), (val + key[1]))
-        except Exception as e:
-            print(e)
 
 
 def rename2_(files):
-    """
-    Renames files from old to new name
-    :param files: dict with (olename, newname):path     
-    """
     for file in files:
         try:
             os.rename((file.path + file.oldname), (file.path + file.newname))
         except Exception as e:
             print(e)
-            '''
-    for key, val in files:
-        try:
-            os.rename((val + key[0]), (val + key[1]))
-        except Exception as e:
-            print(e)
-            '''
-
-
-
 
 
 if __name__ == '__main__':
