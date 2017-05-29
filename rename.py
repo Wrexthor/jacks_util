@@ -63,18 +63,19 @@ def main(path, pattern, recurse, exif, simulate, lower, upper, date, strip, rena
         replace_space(files, strip)
 
     # if simulate, only print result
-    if simulate:
-        print('Simulated results:')
+
         simulate2_(files)
     # else print result and rename
-    else:
-        # check that there is a new name
-        if files[0].newname:
-            print('Renaming:')
-            simulate2_(files)
-            rename2_(files)
+    # check that there is a new name
+    if files[0].newname:
+        if simulate:
+            print('Simulated results:')
         else:
-            print('No action take as no new name was given')
+            print('Renaming:')
+        rename2_(files, simulate)
+    else:
+        print('No action take as no new name was given')
+
 
 
 class File:
@@ -123,127 +124,41 @@ def rename_custom(files, rename_):
             else:
                 file.newname = rename_.replace(replace_, format(i, fill))
             i = i + 1
+        if '.' in file.oldname:
+            file.newname = rename_ + '.' + file.oldname.split('.')[1]
+        else:
+            file.newname = rename_
         if '%Y' in rename_:
-            if '.' in file.oldname:
                 try:
                     year = time.strftime("%Y")
-                    file.newname = rename_.replace('%Y', year) + '.' + file.oldname.split('.')[1]
-                except:
-                    pass
-            else:
-                try:
-                    year = time.strftime("%Y")
-                    file.newname = rename_.replace('%Y', year)
+                    file.newname = file.newname.replace('%Y', year)
                 except:
                     pass
         if '%m' in rename_:
-            if '.' in file.oldname:
                 try:
                     month = time.strftime("%m")
-                    file.newname = rename_.replace('%m', month) + '.' + file.oldname.split('.')[1]
-                except:
-                    pass
-            else:
-                try:
-                    month = time.strftime("%m")
-                    file.newname = rename_.replace('%m', month)
+                    file.newname = file.newname.replace('%m', month)
                 except:
                     pass
         if '%d' in rename_:
-            if '.' in file.oldname:
                 try:
                     day = time.strftime("%d")
-                    file.newname = rename_.replace('%d', day) + '.' + file.oldname.split('.')[1]
-                except:
-                    pass
-            else:
-                try:
-                    day = time.strftime("%d")
-                    file.newname = rename_.replace('%d', day)
+                    file.newname = file.newname.replace('%d', day)
                 except:
                     pass
         if '%H' in rename_:
-            if '.' in file.oldname:
                 try:
-                    hour = time.strftime("%h")
-                    file.newname = rename_.replace('%h', hour) + '.' + file.oldname.split('.')[1]
-                except:
-                    pass
-            else:
-                try:
-                    hour = time.strftime("%h")
-                    file.newname = rename_.replace('%h', hour)
+                    hour = time.strftime("%H")
+                    file.newname = file.newname.replace('%H', hour)
                 except:
                     pass
         if '%M' in rename_:
-            if '.' in file.oldname:
                 try:
                     minute = time.strftime("%M")
-                    file.newname = rename_.replace('%M', minute) + '.' + file.oldname.split('.')[1]
+                    file.newname = file.newname.replace('%M', minute)
                 except:
                     pass
-            else:
-                try:
-                    minute = time.strftime("%M")
-                    file.newname = rename_.replace('%M', minute)
-                except:
-                    pass
-
-                '''
-            if '.' in file.oldname:
-                try:
-                    year = time.strftime("%Y")
-                    file.newname = rename_.replace('%Y', year) + '.' + file.oldname.split('.')[1]
-                except:
-                    pass
-                try:
-                    month = time.strftime("%m")
-                    file.newname = rename_.replace('%m', month) + '.' + file.oldname.split('.')[1]
-                except:
-                    pass
-                try:
-                    day = time.strftime("%d")
-                    file.newname = rename_.replace('%d', day) + '.' + file.oldname.split('.')[1]
-                except:
-                    pass
-                try:
-                    hour = time.strftime("%H")
-                    file.newname = rename_.replace('%H', hour) + '.' + file.oldname.split('.')[1]
-                except:
-                    pass
-                try:
-                    minute = time.strftime("%M")
-                    file.newname = rename_.replace('%M', minute) + '.' + file.oldname.split('.')[1]
-                except:
-                    pass
-            else:
-                try:
-                    year = time.strftime("%Y")
-                    file.newname = rename_.replace('%Y', year)
-                except:
-                    pass
-                try:
-                    month = time.strftime("%m")
-                    file.newname = rename_.replace('%m', month)
-                except:
-                    pass
-                try:
-                    day = time.strftime("%d")
-                    file.newname = rename_.replace('%d', day)
-                except:
-                    pass
-                try:
-                    hour = time.strftime("%H")
-                    file.newname = rename_.replace('%H', hour)
-                except:
-                    pass
-                try:
-                    minute = time.strftime("%M")
-                    file.newname = rename_.replace('%M', minute)
-                except:
-                    pass
-                    '''
-            i = i + 1
+        i = i + 1
 
 
 def replace_space(files, char):
@@ -293,22 +208,51 @@ def simulate2_(files):
         print('{} renamed to {}'.format(file.oldname, file.newname))
 
 
-def rename2_(files):
-    i = 1
+def rename2_(files, simulate):
+    # declare loop variables
+    i = 0
+    last = None
+    exists = None
     for file in files:
+        # try to rename
         try:
-            os.rename((file.path + file.oldname), (file.path + file.newname))
+            # if simulate check if name from last iteration is same as in this one
+            if simulate:
+                if last:
+                    # set variable to True of False
+                    exists = file.newname == last
+            # if not simulating, rename files, if exists error is thrown
+            if not simulate:
+                os.rename((file.path + file.oldname), (file.path + file.newname))
+            # if filename is same and simulating, throw error manually
+            if exists:
+                raise WindowsError(17, 'File already exists')
+            # if above succeeds, print what happened
+            print('{} renamed to {}'.format(file.oldname, file.newname))
+
         except WindowsError as e:
+            # if error is file already exist
             if e.errno == 17:
+                # check if file has a file ending
                 if '.' in file.newname:
+                    # store filending in variable
                     fileending = '.' + file.newname.split('.')[1]
-                    os.rename((file.path + file.oldname), (file.path + file.newname.split('.')[0] + '-' + format(i, '02d') + fileending))
+                    # if not simulating, rename
+                    if not simulate:
+                        # rename using filending, appending 3 digit value based on i
+                        os.rename((file.path + file.oldname), (file.path + file.newname.split('.')[0] + '-' + format(i, '02d') + fileending))
+                    print('{} renamed to {}'.format(file.oldname, (file.newname.split('.')[0] + '-' + format(i, '02d') + fileending)))
                 else:
+                    # rename without filending,  appending 3 digit value based on i
                     os.rename((file.path + file.oldname),
                               (file.path + file.newname.split('.')[0] + '-' + format(i, '02d')))
+                    print('{} renamed to {}'.format(file.oldname, (file.newname.split('.')[0] + '-' + format(i, '02d'))))
             else:
+                # error was not file exists, print it
                 print(e.winerror)
+        last = file.newname
         i = i + 1
+
 
 
 if __name__ == '__main__':
