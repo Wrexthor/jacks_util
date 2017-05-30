@@ -19,7 +19,7 @@ import time
 @click.option('--exif', '-e', is_flag=True, help="Strips exif metadata from JPEG/TIFF images")
 @click.option('--date', '-d', is_flag=True, help="Appends datetime to files in format: _%Y/%m/%d_%H:%M")
 @click.option('--strip', '-S', help="Use none to remove whitespaces or a character to replace them with")
-@click.option('--rename', '-r', help="Use %Y:%m:%d:%H:%M datetime format or ### for incremental number, example newname###")
+@click.option('--rename', '-r', type=str, help="Use %Y:%m:%d:%H:%M datetime format or ### for incremental number, example newname###")
 
 
 def main(path, pattern, recurse, exif, simulate, lower, upper, date, strip, rename):
@@ -111,23 +111,28 @@ def rename_custom(files, rename_):
     # rename.trim('')
     i = 1
     for file in files:
-        if '#' in rename_:
-            # count number of # present
-            count = rename_.count('#')
-            # create a variable for the
-            replace_ = '#' * count
-            # create a variable for use in format based on count
-            fill = '0' + str(count) + 'd'
-            # add newname to file object
-            if '.' in file.oldname:
-                file.newname = rename_.replace(replace_, format(i, fill)) + '.' + file.oldname.split('.')[1]
-            else:
-                file.newname = rename_.replace(replace_, format(i, fill))
-            i = i + 1
         if '.' in file.oldname:
             file.newname = rename_ + '.' + file.oldname.split('.')[1]
         else:
             file.newname = rename_
+
+        if '#' in file.newname:
+            # count number of # present
+            count = file.newname.count('#')
+            # create a variable for the
+            replace_ = '#' * count
+            # create a variable for use in format based on count
+            fill = '0' + str(count) + 'd'
+            file.newname = file.newname.replace(replace_, format(i, fill))
+            '''
+            # add newname to file object            
+            if '.' in file.oldname:
+                file.newname = file.newname.replace(replace_, format(i, fill)) + '.' + file.oldname.split('.')[1]
+            else:
+                file.newname = file.newname.replace(replace_, format(i, fill))
+            '''
+            # i = i + 1
+
         if '%Y' in rename_:
                 try:
                     year = time.strftime("%Y")
