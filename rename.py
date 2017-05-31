@@ -1,5 +1,5 @@
 """
-CLI that takes a list of files as input and renames them according to a pattern
+CLI utility that renames files in bulk in specified path, with support for datetime formating
 """
 
 import click
@@ -10,72 +10,85 @@ import time
 
 @click.command()
 @click.option('--path', prompt=True, help="Path to folder to run against")
-@click.option('--pattern', '-p', help="Name pattern, ie image###.jpg")
-#@click.option('--reverse', '-r', default=False, help="Reverse order of renaming")
+# @click.option('--pattern', '-p', help="Name pattern, ie image###.jpg")
+# @click.option('--reverse', '-r', default=False, help="Reverse order of renaming")
 @click.option('--recurse', '-R', is_flag=True, help="Recursivly renames ALL sub files in folder, please be careful!")
 @click.option('--simulate', '-s', is_flag=True, help="Simulates results, writing changes to console without doing anything")
 @click.option('--lower', '-l', is_flag=True, help="Make all names lowercase")
 @click.option('--upper', '-u', is_flag=True, help="Make all names uppercase")
 @click.option('--exif', '-e', is_flag=True, help="Strips exif metadata from JPEG/TIFF images")
-@click.option('--date', '-d', is_flag=True, help="Appends datetime to files in format: _%Y/%m/%d_%H:%M")
+@click.option('--filter', '-f', type=str, help="Use a string or file ending to be included, example .jpg only includes jpg files")
+# @click.option('--date', '-d', is_flag=True, help="Appends datetime to files in format: _%Y/%m/%d_%H:%M")
 @click.option('--strip', '-S', help="Use none to remove whitespaces or a character to replace them with")
 @click.option('--rename', '-r', type=str, help="Use %Y:%m:%d:%H:%M datetime format or ### for incremental number, example newname###")
+@click.option('--verbose', '-v', is_flag=True, help="Produces verbose output")
 
 
-def main(path, pattern, recurse, exif, simulate, lower, upper, date, strip, rename):
+def main(path, recurse, exif, simulate, lower, upper, strip, rename, filter, verbose):
     # get files from path if recurse
     if recurse:
-        files = get_files_recurse2(path)
+        files = get_files_recurse(path, verbose)
     # else get files only in folder
     else:
-        files = get_files2(path)
+        files = get_files(path, verbose)
 
     # check if reverse true, if so, reverse list
     #if reverse:
     #    files.reverse()
 
+    if filter:
+        if verbose:
+            click.echo('Filter {} given'.format(filter))
+        filter_files(files, filter, verbose)
+
     # check lower option
     if lower and not upper:
-        to_lowercase2(files)
-
-    if lower and upper:
-        print("You can't use both upper and lower")
+        if verbose:
+            click.echo('Lower = True, running to lowercase')
+        to_lowercase(files)
 
     # check upper option
     if upper and not lower:
-        to_uppercase2(files)
+        if verbose:
+            click.echo('Upper = True, running to uppercase')
+        to_uppercase(files)
+
+    # error if both given
+    if lower and upper:
+        click.echo("You can't use both upper and lower")
 
     # check if strip exif
     if exif:
-        print('Stripping metadata:')
-        strip_exif2(files)
+        if verbose:
+            click.echo('--exif given, stripping exif metadata from jpg/tiff files')
+        strip_exif(files)
 
     if rename:
-        print('Renaming based on input:')
-        rename_custom(files, rename)
-
-    if date:
-        print('Appending date:')
-        add_date(files)
+        if verbose:
+            click.echo('--rename option given with {}'.format(rename))
+        rename_custom(files, rename, verbose)
 
     if strip:
-        print('Stripping/replacing whitespaces:')
-        replace_space(files, strip)
+        if verbose:
+            click.echo('--strip option given with {}'.format(strip))
+        replace_space(files, strip, verbose)
 
-    # if simulate, only print result
-
-        simulate2_(files)
-    # else print result and rename
-    # check that there is a new name
-    if files[0].newname:
-        if simulate:
-            print('Simulated results:')
+    try:
+        # check that there is a new name
+        if files[0].newname:
+            if simulate:
+                if verbose:
+                    click.echo('--simulate option given, no changes will be made')
+                click.echo('Simulated results:')
+            else:
+                if verbose:
+                    click.echo('no simulated option given, changes will be made to filenames')
+                click.echo('Renaming:')
+            rename_(files, simulate, verbose)
         else:
-            print('Renaming:')
-        rename2_(files, simulate)
-    else:
-        print('No action take as no new name was given')
-
+            click.echo('No action take as no new name was given')
+    except IndexError:
+        click.echo('No action take as no new name was given')
 
 
 class File:
@@ -91,129 +104,219 @@ def add_date(files):
         file.newname = (file.oldname.split('.')[0]) + now + '.' + file.oldname.split('.')[1]
 
 
-def strip_exif2(files):
+def strip_exif(files):
     """
-    Strips EXIF metadata from imagees
-    :param files: dict of files with name:path    
+    strips exif metadata from jpg or tiff files
+    :param files: list with file objects
+    :return: list with file objects
     """
     for file in files:
         try:
             if '.jpg' in file.oldname or '.tiff' in file.oldname:
                 piexif.remove((file.path + file.oldname))
-                print('Metadata removed from {}'.format(file.oldname))
+                click.echo('Metadata removed from {}'.format(file.oldname))
             else:
-                print('{} is not a JPEG or TIFF and wont be processed'.format(file.oldname))
+                click.echo('{} is not a JPEG or TIFF and wont be processed'.format(file.oldname))
         except Exception as e:
-            print(e)
+            click.echo(e)
 
 
-def rename_custom(files, rename_):
-    # rename.trim('')
+def filter_files(files, filter, verbose):
+    """
+    removes antries from files list that does not contain
+    filter string
+    :param files: list of file objects
+    :param filter: string used to filter files
+    :param verbose: indicates if verbose output should be written
+    :return:
+    """
+    # list for files to remove
+    to_remove = []
+    for file in files:
+        # check if filter is in old filename
+        if filter not in file.oldname:
+            if verbose:
+                click.echo('{} did not match filter'.format(file.oldname))
+            to_remove.append(file)
+        else:
+            if verbose:
+                click.echo('{} did match the filter'.format(file.oldname))
+    for i in to_remove:
+        if verbose:
+            click.echo('Removing {} from list of files due to not matching filter'.format(i.oldname))
+        files.remove(i)
+
+
+def rename_custom(files, rename_, verbose):
+    """
+    set newname based on user input
+    using pre-defined patterns for naming rules
+    :param files: list of file objects
+    :param rename_: user input string
+    :param verbose: indicates if verbose output should be written
+    """
     i = 1
     for file in files:
         if '.' in file.oldname:
             file.newname = rename_ + '.' + file.oldname.split('.')[1]
+            if verbose:
+                click.echo("A '.' was found in filename {} assuming file ending {}".format(file.oldname, ('.' + file.oldname.split('.')[1])))
         else:
             file.newname = rename_
+            if verbose:
+                click.echo('No filending was found in file {}'.format(file.oldname))
 
         if '#' in file.newname:
             # count number of # present
             count = file.newname.count('#')
+            if verbose:
+                click.echo('Found {} instances of # in user input'.format(count))
             # create a variable for the
             replace_ = '#' * count
             # create a variable for use in format based on count
             fill = '0' + str(count) + 'd'
             file.newname = file.newname.replace(replace_, format(i, fill))
-            '''
-            # add newname to file object            
-            if '.' in file.oldname:
-                file.newname = file.newname.replace(replace_, format(i, fill)) + '.' + file.oldname.split('.')[1]
-            else:
-                file.newname = file.newname.replace(replace_, format(i, fill))
-            '''
-            # i = i + 1
 
         if '%Y' in rename_:
                 try:
                     year = time.strftime("%Y")
                     file.newname = file.newname.replace('%Y', year)
+                    if verbose:
+                        click.echo('Found %Y in {} replacing with {}'.format(file.newname, year))
                 except:
+                    if verbose:
+                        click.echo('Found no %Y in {}'.format(file.newname))
                     pass
         if '%m' in rename_:
                 try:
                     month = time.strftime("%m")
                     file.newname = file.newname.replace('%m', month)
+                    if verbose:
+                        click.echo('Found %m in {} replacing with {}'.format(file.newname, month))
                 except:
+                    if verbose:
+                        click.echo('Found no %m in {}'.format(file.newname))
                     pass
+
         if '%d' in rename_:
                 try:
                     day = time.strftime("%d")
                     file.newname = file.newname.replace('%d', day)
+                    if verbose:
+                        click.echo('Found %d in {} replacing with {}'.format(file.newname, day))
                 except:
+                    if verbose:
+                        click.echo('Found no %d in {}'.format(file.newname))
                     pass
         if '%H' in rename_:
                 try:
                     hour = time.strftime("%H")
                     file.newname = file.newname.replace('%H', hour)
+                    if verbose:
+                        click.echo('Found %H in {} replacing with {}'.format(file.newname, hour))
                 except:
+                    if verbose:
+                        click.echo('Found no %H in {}'.format(file.newname))
                     pass
         if '%M' in rename_:
                 try:
                     minute = time.strftime("%M")
                     file.newname = file.newname.replace('%M', minute)
+                    if verbose:
+                        click.echo('Found %M in {} replacing with {}'.format(file.newname, minute))
                 except:
+                    if verbose:
+                        click.echo('Found no %M in {}'.format(file.newname))
                     pass
         i = i + 1
 
 
-def replace_space(files, char):
+def replace_space(files, char, verbose):
+    """
+    replaces spaces with custom character or removes them
+    :param files: list of file objects
+    :param char: character to replace space
+    :param verbose: indicates if verbose output should be written
+    """
     if char == 'none':
         char = ''
+        if verbose:
+            click.echo('Found no replacement character, will strip spaces completely')
     for file in files:
         file.newname = file.oldname.replace(' ', char)
+        if verbose:
+            click.echo('Replacing space with {} in {}'.format(char, file.oldname))
 
 
-def get_files2(folder_path):
+def get_files(folder_path, verbose):
+    """
+    gets files from folder
+    :param folder_path: string representing a folder path
+    :param verbose: indicates if verbose output should be written
+    :return: list of file objects
+    """
     f = []
     try:
         for (dirpath, dirnames, filenames) in os.walk(folder_path):
             for file in filenames:
                 f.append(File(file, (dirpath + os.sep)))
+                if verbose:
+                    click.echo('Found file {} in {}'.format(file, dirpath))
             break
         return f
     except Exception as e:
-        print(e)
+        click.echo(e)
         return None
 
 
-def to_uppercase2(files):
+def to_uppercase(files):
+    """
+    sets newname to uppercase
+    :param files: list of file objects
+    """
     for file in files:
         file.newname = file.oldname.upper()
 
 
-def to_lowercase2(files):
+def to_lowercase(files):
+    """
+    sets newname to lowercase
+    :param files: list of file objects
+    """
     for file in files:
         file.newname = file.oldname.lower()
 
 
-def get_files_recurse2(folder_path):
+def get_files_recurse(folder_path, verbose):
+    """
+    gets files from folder and subfolders
+    :param folder_path: string representing folder path
+    :param verbose: indicates if verbose output should be written
+    :return: list of file objects
+    """
     paths = []
     try:
         for root, dirs, files in os.walk(folder_path):
             for name in files:
                 paths.append(File(name, (root + os.sep)))
+                if verbose:
+                    click.echo('Found file {} in {}'.format(name, root))
         return paths
     except Exception as e:
-        print(e)
+        click.echo(e)
         return None
 
 
-def simulate2_(files):
-    for file in files:
-        print('{} renamed to {}'.format(file.oldname, file.newname))
-
-
-def rename2_(files, simulate):
+def rename_(files, simulate, verbose):
+    """
+    renames files from file.oldname to file.newname
+    also checking if file already exists, if it does, it appends
+    a 3 digit number to indicate iteration and prevent name conflict
+    :param files: list of file objects
+    :param simulate: boolean indicating if it should print only or print and rename
+    :param verbose: indicates if verbose output should be written
+    :return:
+    """
     # declare loop variables
     i = 0
     last = None
@@ -233,31 +336,36 @@ def rename2_(files, simulate):
             if exists:
                 raise WindowsError(17, 'File already exists')
             # if above succeeds, print what happened
-            print('{} renamed to {}'.format(file.oldname, file.newname))
+            click.echo('{} renamed to {}'.format(file.oldname, file.newname))
 
         except WindowsError as e:
             # if error is file already exist
             if e.errno == 17:
+                if verbose:
+                    click.echo('File {} already exists, adding additional numbers to filename'.format(file.newname))
                 # check if file has a file ending
                 if '.' in file.newname:
                     # store filending in variable
                     fileending = '.' + file.newname.split('.')[1]
+                    if verbose:
+                        click.echo('File {} has filending {}'.format(file.newname, fileending))
                     # if not simulating, rename
                     if not simulate:
                         # rename using filending, appending 3 digit value based on i
                         os.rename((file.path + file.oldname), (file.path + file.newname.split('.')[0] + '-' + format(i, '02d') + fileending))
-                    print('{} renamed to {}'.format(file.oldname, (file.newname.split('.')[0] + '-' + format(i, '02d') + fileending)))
+                    click.echo('{} renamed to {}'.format(file.oldname, (file.newname.split('.')[0] + '-' + format(i, '02d') + fileending)))
                 else:
+                    if verbose:
+                        click.echo('File {} has no filending'.format(file.newname))
                     # rename without filending,  appending 3 digit value based on i
                     os.rename((file.path + file.oldname),
                               (file.path + file.newname.split('.')[0] + '-' + format(i, '02d')))
-                    print('{} renamed to {}'.format(file.oldname, (file.newname.split('.')[0] + '-' + format(i, '02d'))))
+                    click.echo('{} renamed to {}'.format(file.oldname, (file.newname.split('.')[0] + '-' + format(i, '02d'))))
             else:
                 # error was not file exists, print it
-                print(e.winerror)
+                click.echo(e.winerror)
         last = file.newname
         i = i + 1
-
 
 
 if __name__ == '__main__':
