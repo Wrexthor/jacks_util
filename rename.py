@@ -22,9 +22,11 @@ import time
 @click.option('--strip', '-S', help="Use none to remove whitespaces or a character to replace them with")
 @click.option('--rename', '-r', type=str, help="Use %Y:%m:%d:%H:%M datetime format or ### for incremental number, example newname###")
 @click.option('--verbose', '-v', is_flag=True, help="Produces verbose output")
+@click.option('--ending', '-E', help="Replace filending to given format, example jpg changes all endings to .jpg")
+@click.option('--tofolder', '-F', nargs=2, help="Moves files matching x to folder named y, example .jpg pictures moves all jpg files to subfolder pictures")
 
 
-def main(path, recurse, exif, simulate, lower, upper, strip, rename, filter, verbose):
+def main(path, recurse, exif, simulate, lower, upper, strip, rename, filter, verbose, ending, tofolder):
     # get files from path if recurse
     if recurse:
         files = get_files_recurse(path, verbose)
@@ -57,6 +59,11 @@ def main(path, recurse, exif, simulate, lower, upper, strip, rename, filter, ver
     if lower and upper:
         click.echo("You can't use both upper and lower")
 
+    if ending:
+        change_ending(files, ending, verbose)
+
+    if tofolder:
+        to_folder(files, tofolder, verbose)
     # check if strip exif
     if exif:
         if verbose:
@@ -97,11 +104,60 @@ class File:
         self.newname = None
         self.path = path
 
+def to_folder(files, tofolder, verbose):
+    to_move = []
+    for file in files:
+            # check if filter is in old filename
+            if tofolder[0] in file.oldname:
+                if verbose:
+                    click.echo('{} matched filter'.format(file.oldname))
+                to_move.append(file)
+            else:
+                if verbose:
+                    click.echo('{} did not match the filter'.format(file.oldname))
+    # set path of subfolder using path of first file found in files
+    if files[0]:
+        newpath = files[0].path + os.sep + tofolder[1]
+        if verbose:
+            click.echo('New path set to {}'.format(newpath))
+    else:
+        click.echo('No files found to move')
+        return
+
+    # create folder to move to
+    if not os.path.exists(newpath):
+        if verbose:
+            click.echo('{} not found, creating folder'.format(newpath))
+        os.makedirs(newpath)
+
+    # move files in list to new path
+    for file in to_move:
+        if verbose:
+            click.echo('Moving {} to {}'.format(file.oldname, newpath))
+        os.rename((file.path + os.sep + file.oldname), (newpath + os.sep + file.oldname))
+
 
 def add_date(files):
     now = time.strftime("_%Y/%m/%d_%H:%M")
     for file in files:
         file.newname = (file.oldname.split('.')[0]) + now + '.' + file.oldname.split('.')[1]
+
+
+def change_ending(files, ending, verbose):
+    # make sure there are no dots in ending string
+    try:
+        file_ending = ending.split('.')[1]
+    except IndexError:
+        file_ending = ending
+    for file in files:
+        if '.' in file.oldname:
+            if verbose:
+                click.echo('Filending {} found in {} changing to {}'.format(('.' + file.oldname.split('.')[1]), file.oldname, file_ending))
+            file.newname = file.oldname.split('.')[0] + '.' + file_ending
+        else:
+            if verbose:
+                click.echo('No filending found in {} adding {}'.format(file.oldname, file_ending))
+            file.newname = file.oldname + '.' + file_ending
 
 
 def strip_exif(files):
