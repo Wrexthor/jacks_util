@@ -6,27 +6,42 @@ import click
 import os
 import piexif
 import time
+# import logging
 
 
 @click.command()
 @click.option('--path', prompt=True, help="Path to folder to run against")
-# @click.option('--pattern', '-p', help="Name pattern, ie image###.jpg")
-# @click.option('--reverse', '-r', default=False, help="Reverse order of renaming")
-@click.option('--recurse', '-R', is_flag=True, help="Recursivly renames ALL sub files in folder, please be careful!")
+@click.option('--recurse', '-r', is_flag=True, help="Recursivly renames ALL sub files in folder, please be careful!")
 @click.option('--simulate', '-s', is_flag=True, help="Simulates results, writing changes to console without doing anything")
-@click.option('--lower', '-l', is_flag=True, help="Make all names lowercase")
-@click.option('--upper', '-u', is_flag=True, help="Make all names uppercase")
-@click.option('--exif', '-e', is_flag=True, help="Strips exif metadata from JPEG/TIFF images")
+@click.option('--reverse', is_flag=True, help="Reverse order of renaming")
 @click.option('--filter', '-f', type=str, help="Use a string or file ending to be included, example .jpg only includes jpg files")
-# @click.option('--date', '-d', is_flag=True, help="Appends datetime to files in format: _%Y/%m/%d_%H:%M")
-@click.option('--strip', '-S', help="Use none to remove whitespaces or a character to replace them with")
-@click.option('--rename', '-r', type=str, help="Use %Y:%m:%d:%H:%M datetime format or ### for incremental number, example newname###")
+@click.option('--rename', type=str, help="Use %Y:%m:%d:%H:%M datetime format or ### for incremental number, example newname###")
+@click.option('--append', type=str, help="Adds input to end of filename, example input gray to file orange.txt becomes orangegray.txt")
+@click.option('--ending', help="Replace filending to given format, example jpg changes all endings to .jpg")
+@click.option('--replace', nargs=2, type=str, help="Replace x with y in filenames, use --replace x y makes regex.jpg to regey.jpg")
+@click.option('--strip', help="Use none to remove whitespaces or a character to replace them with")
+@click.option('--tofolder', nargs=2, help="Moves files matching x to folder named y, example .jpg pictures moves all jpg files to subfolder pictures")
+@click.option('--lower', is_flag=True, help="Make all names lowercase")
+@click.option('--upper', is_flag=True, help="Make all names uppercase")
+@click.option('--exif', is_flag=True, help="Strips exif metadata from JPEG/TIFF images")
 @click.option('--verbose', '-v', is_flag=True, help="Produces verbose output")
-@click.option('--ending', '-E', help="Replace filending to given format, example jpg changes all endings to .jpg")
-@click.option('--tofolder', '-F', nargs=2, help="Moves files matching x to folder named y, example .jpg pictures moves all jpg files to subfolder pictures")
 
 
-def main(path, recurse, exif, simulate, lower, upper, strip, rename, filter, verbose, ending, tofolder):
+def main(path, recurse, exif, simulate, lower, upper, strip, rename, filter, verbose, ending, tofolder, append, replace, reverse):
+    '''
+    # To be implemented
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+    # create a file handler
+    handler = logging.FileHandler('renamer.log')
+    handler.setLevel(logging.INFO)
+    # create a logging format
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    # add the handlers to the logger
+    logger.addHandler(handler)
+    '''
+
     # get files from path if recurse
     if recurse:
         files = get_files_recurse(path, verbose)
@@ -35,13 +50,49 @@ def main(path, recurse, exif, simulate, lower, upper, strip, rename, filter, ver
         files = get_files(path, verbose)
 
     # check if reverse true, if so, reverse list
-    #if reverse:
-    #    files.reverse()
+    if reverse:
+        files.reverse()
 
     if filter:
         if verbose:
             click.echo('Filter {} given'.format(filter))
         filter_files(files, filter, verbose)
+
+    if ending:
+        if verbose:
+            click.echo('--ending option given with {}'.format(ending))
+        change_ending(files, ending, verbose)
+
+    if replace:
+        if verbose:
+            click.echo('--replace option given with {} and {}'.format(replace[0], replace[1]))
+        replace_(files, replace, verbose)
+
+    if tofolder:
+        if verbose:
+            click.echo('--tofolder option given with {} and {}'.format(tofolder[0], tofolder[1]))
+        to_folder(files, tofolder, verbose)
+
+    # check if strip exif
+    if exif:
+        if verbose:
+            click.echo('--exif given, stripping exif metadata from jpg/tiff files')
+        strip_exif(files)
+
+    if append:
+        if verbose:
+            click.echo('--append option given with {}'.format(append))
+        append_(files, append, verbose)
+
+    if rename:
+        if verbose:
+            click.echo('--rename option given with {}'.format(rename))
+        rename_custom(files, rename, verbose)
+
+    if strip:
+        if verbose:
+            click.echo('--strip option given with {}'.format(strip))
+        replace_space(files, strip, verbose)
 
     # check lower option
     if lower and not upper:
@@ -58,27 +109,6 @@ def main(path, recurse, exif, simulate, lower, upper, strip, rename, filter, ver
     # error if both given
     if lower and upper:
         click.echo("You can't use both upper and lower")
-
-    if ending:
-        change_ending(files, ending, verbose)
-
-    if tofolder:
-        to_folder(files, tofolder, verbose)
-    # check if strip exif
-    if exif:
-        if verbose:
-            click.echo('--exif given, stripping exif metadata from jpg/tiff files')
-        strip_exif(files)
-
-    if rename:
-        if verbose:
-            click.echo('--rename option given with {}'.format(rename))
-        rename_custom(files, rename, verbose)
-
-    if strip:
-        if verbose:
-            click.echo('--strip option given with {}'.format(strip))
-        replace_space(files, strip, verbose)
 
     try:
         # check that there is a new name
@@ -104,7 +134,16 @@ class File:
         self.newname = None
         self.path = path
 
+
 def to_folder(files, tofolder, verbose):
+    """
+    moves files matching tofolder[0] to folder named tofolder[1]
+    if folder does not exists it is created in subfolder of first file in files path
+    :param files: list of file objects
+    :param tofolder: tuple of string to match and name of subfolder
+    :param verbose: indicates if verbose output should be written
+    :return:
+    """
     to_move = []
     for file in files:
             # check if filter is in old filename
@@ -137,13 +176,49 @@ def to_folder(files, tofolder, verbose):
         os.rename((file.path + os.sep + file.oldname), (newpath + os.sep + file.oldname))
 
 
-def add_date(files):
-    now = time.strftime("_%Y/%m/%d_%H:%M")
+def replace_(files, replace_tuple, verbose):
+    """
+    replaces replace_tuple[0] with replace_tuple[1] in file.newname
+    :param files: list of file objects
+    :param replace_tuple: tuple with 2 strings
+    :param verbose: indicates if verbose output should be written
+    :return:
+    """
     for file in files:
-        file.newname = (file.oldname.split('.')[0]) + now + '.' + file.oldname.split('.')[1]
+        if replace_tuple[0] in file.oldname:
+            file.newname = file.oldname.replace(replace_tuple[0], replace_tuple[1])
+            if verbose:
+                click.echo('{} found in {} and replaced by {} new name is {}'.format(replace_tuple[0], file.oldname, replace_tuple[1], file.newname))
+
+
+def append_(files, append, verbose):
+    """
+    appends string append to file.oldname and stores in file.newname
+    :param files: list of file objects
+    :param append: string with text to append
+    :param verbose: indicates if verbose output should be written
+    :return:
+    """
+    for file in files:
+        if '.' in file.oldname:
+            file.newname = file.oldname.split('.')[0] + append + '.' + file.oldname.split('.')[1]
+            if verbose:
+                click.echo('File ending found in {}, new name is {}'.format(file.oldname, file.newname))
+        else:
+            file.newname = file.oldname + append
+            if verbose:
+                click.echo('No file ending found in {}, new name is {}'.format(file.oldname, file.newname))
 
 
 def change_ending(files, ending, verbose):
+    """
+    alters file ending of files
+    if ending exists it is replaces, otherwise it is added
+    :param files: list of file objects
+    :param ending: string representing file ending, with or without .
+    :param verbose: indicates if verbose output should be written
+    :return:
+    """
     # make sure there are no dots in ending string
     try:
         file_ending = ending.split('.')[1]
