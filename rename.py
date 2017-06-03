@@ -18,6 +18,7 @@ import time
 @click.option('--rename', type=str, help="Use %Y:%m:%d:%H:%M datetime format or ### for incremental number, example newname###")
 @click.option('--append', type=str, help="Adds input to end of filename, example input gray to file orange.txt becomes orangegray.txt")
 @click.option('--ending', help="Replace filending to given format, example jpg changes all endings to .jpg")
+@click.option('--remove', help="Remove entered string from all filenames")
 @click.option('--replace', nargs=2, type=str, help="Replace x with y in filenames, use --replace x y makes regex.jpg to regey.jpg")
 @click.option('--strip', help="Use none to remove whitespaces or a character to replace them with")
 @click.option('--tofolder', nargs=2, help="Moves files matching x to folder named y, example .jpg pictures moves all jpg files to subfolder pictures")
@@ -27,7 +28,7 @@ import time
 @click.option('--verbose', '-v', is_flag=True, help="Produces verbose output")
 
 
-def main(path, recurse, exif, simulate, lower, upper, strip, rename, filter, verbose, ending, tofolder, append, replace, reverse):
+def main(path, recurse, exif, simulate, lower, upper, strip, rename, filter, verbose, ending, tofolder, append, replace, reverse, remove):
     '''
     # To be implemented
     logging.basicConfig(level=logging.INFO)
@@ -67,6 +68,11 @@ def main(path, recurse, exif, simulate, lower, upper, strip, rename, filter, ver
         if verbose:
             click.echo('--replace option given with {} and {}'.format(replace[0], replace[1]))
         replace_(files, replace, verbose)
+
+    if remove:
+        if verbose:
+            click.echo('--remove option given with {}'.format(remove))
+        remove_match(files, remove, verbose)
 
     if tofolder:
         if verbose:
@@ -189,6 +195,24 @@ def replace_(files, replace_tuple, verbose):
             file.newname = file.oldname.replace(replace_tuple[0], replace_tuple[1])
             if verbose:
                 click.echo('{} found in {} and replaced by {} new name is {}'.format(replace_tuple[0], file.oldname, replace_tuple[1], file.newname))
+
+
+def remove_match(files, remove, verbose):
+    """
+    removes match to string remove from file.oldname and stores in file.newname
+    :param files: list of file objects
+    :param remove: string to remove from filename
+    :param verbose: indicates if verbose output should be written
+    :return:
+    """
+    for file in files:
+        if remove in file.oldname:
+            file.newname = file.oldname.replace(remove, '')
+            if verbose:
+                click.echo('Removing {} from {} new name {}'.format(remove, file.oldname, file.newname))
+        else:
+            if verbose:
+                click.echo('{} not found in {}'.format(remove, file.oldname))
 
 
 def append_(files, append, verbose):
